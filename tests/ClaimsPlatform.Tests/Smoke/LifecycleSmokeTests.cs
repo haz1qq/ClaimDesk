@@ -177,6 +177,8 @@ public class LifecycleSmokeTests
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        // Framework error text names internal types; it must not reach the client.
+        Assert.DoesNotContain(nameof(SubmitClaimRequest), await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
