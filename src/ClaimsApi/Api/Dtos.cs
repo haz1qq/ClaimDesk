@@ -18,9 +18,10 @@ public record RejectRequest(string Reason);
 
 // ---- Responses ----
 
+/// <summary>Reserve is null for claimants: it is the insurer's internal estimate.</summary>
 public record ClaimSummary(
     Guid Id, string Number, ClaimStatus Status, ClaimType Type, Market Market, string Currency,
-    decimal ClaimedAmount, decimal Reserve, Guid ClaimantId, string ClaimantName,
+    decimal ClaimedAmount, decimal? Reserve, Guid ClaimantId, string ClaimantName,
     Guid? AssignedOfficerId, string? AssignedOfficerName, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 
 public record InformationRequestDto(

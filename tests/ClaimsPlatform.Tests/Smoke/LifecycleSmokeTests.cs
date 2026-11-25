@@ -137,6 +137,27 @@ public class LifecycleSmokeTests
     }
 
     [Fact]
+    public async Task Claimant_cannot_see_reserve()
+    {
+        var id = (await SubmitAsAisha()).Summary.Id;
+        await Expect(HttpStatusCode.OK, SeedUsers.OfficerMei, HttpMethod.Post, $"/api/claims/{id}/assign");
+        await Expect(HttpStatusCode.OK, SeedUsers.OfficerMei, HttpMethod.Put, $"/api/claims/{id}/reserve", new AdjustReserveRequest(9000m));
+
+        // The reserve is the insurer's internal estimate: claimants must not get it, in the detail or the list.
+        var detail = await Expect(HttpStatusCode.OK, SeedUsers.ClaimantAisha, HttpMethod.Get, $"/api/claims/{id}");
+        using var http = As(SeedUsers.ClaimantAisha);
+        var list = await http.GetFromJsonAsync<List<ClaimSummary>>("/api/claims", Json);
+
+        Assert.Null(detail.Summary.Reserve);
+        Assert.DoesNotContain(detail.Timeline, t => t.Type == ClaimEventType.ReserveAdjusted);
+        Assert.Null(list!.Single(c => c.Id == id).Reserve);
+
+        // Officers still see it.
+        var officerView = await Expect(HttpStatusCode.OK, SeedUsers.OfficerMei, HttpMethod.Get, $"/api/claims/{id}");
+        Assert.Equal(9000m, officerView.Summary.Reserve);
+    }
+
+    [Fact]
     public async Task Officer_cannot_submit()
     {
         var response = await Send(SeedUsers.OfficerMei, HttpMethod.Post, "/api/claims",

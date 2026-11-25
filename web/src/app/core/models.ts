@@ -28,7 +28,7 @@ export interface ClaimSummary {
   market: Market;
   currency: string;
   claimedAmount: number;
-  reserve: number;
+  reserve: number | null; // null for claimants: the reserve is internal to the insurer
   claimantId: string;
   claimantName: string;
   assignedOfficerId: string | null;

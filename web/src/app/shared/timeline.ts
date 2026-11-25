@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, input } from '@angular/core';
+import { Component, input } from '@angular/core';
 import { ClaimEventType, TimelineEntry } from '../core/models';
 
 const LABELS: Record<ClaimEventType, string> = {
@@ -12,13 +12,13 @@ const LABELS: Record<ClaimEventType, string> = {
   ClaimRejected: 'Claim rejected',
 };
 
-/** The claim's history, oldest first. Claimants don't see internal reserve changes. */
+/** The claim's history, oldest first. The API already leaves internal events out for claimants. */
 @Component({
   selector: 'app-timeline',
   imports: [DatePipe],
   template: `
     <ol class="timeline">
-      @for (entry of visible(); track $index) {
+      @for (entry of entries(); track $index) {
         <li>
           <span class="timeline-label">{{ label(entry.type) }}</span>
           <span class="muted">{{ entry.actorName }} · {{ entry.occurredAt | date: 'd MMM y, HH:mm' }}</span>
@@ -29,11 +29,6 @@ const LABELS: Record<ClaimEventType, string> = {
 })
 export class Timeline {
   readonly entries = input.required<TimelineEntry[]>();
-  readonly internal = input(false);
-
-  protected readonly visible = computed(() =>
-    this.internal() ? this.entries() : this.entries().filter((e) => e.type !== 'ReserveAdjusted'),
-  );
 
   protected label(type: ClaimEventType): string {
     return LABELS[type];

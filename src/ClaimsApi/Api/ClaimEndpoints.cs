@@ -57,7 +57,7 @@ public static class ClaimEndpoints
         db.Claims.Add(claim);
         await db.SaveChangesAsync();
 
-        return TypedResults.Created($"/api/claims/{claim.Id}", await ToDetail(db, claim));
+        return TypedResults.Created($"/api/claims/{claim.Id}", await ToDetail(db, claim, user));
     }
 
     static async Task<List<ClaimSummary>> List(HttpContext http, ClaimsDbContext db, ClaimStatus? status)
@@ -77,7 +77,7 @@ public static class ClaimEndpoints
 
         var claims = await query.OrderByDescending(c => c.CreatedAt).ToListAsync();
         var names = await UserNames(db);
-        return claims.Select(c => ToSummary(c, names)).ToList();
+        return claims.Select(c => ToSummary(c, names, user)).ToList();
     }
 
     static async Task<Results<Ok<ClaimDetail>, ProblemHttpResult>> Get(Guid id, HttpContext http, ClaimsDbContext db)
@@ -92,7 +92,7 @@ public static class ClaimEndpoints
         if (user.Role == Role.Claimant && claim.ClaimantId != user.Id)
             throw ClaimRuleException.Forbidden("You can only view your own claims.");
 
-        return TypedResults.Ok(await ToDetail(db, claim));
+        return TypedResults.Ok(await ToDetail(db, claim, user));
     }
 
     /// <summary>The shared shape of every action: role check → load → domain method → save → return the claim.</summary>
@@ -109,7 +109,7 @@ public static class ClaimEndpoints
         change(claim, user);
         await db.SaveChangesAsync(); // throws DbUpdateConcurrencyException if someone else saved first (xmin)
 
-        return TypedResults.Ok(await ToDetail(db, claim));
+        return TypedResults.Ok(await ToDetail(db, claim, user));
     }
 
     static ProblemHttpResult ClaimNotFound() =>
@@ -121,22 +121,24 @@ public static class ClaimEndpoints
     static Task<Dictionary<Guid, string>> UserNames(ClaimsDbContext db) =>
         db.Users.AsNoTracking().ToDictionaryAsync(u => u.Id, u => u.Name);
 
-    static ClaimSummary ToSummary(Claim c, Dictionary<Guid, string> names) => new(
-        c.Id, c.DisplayNumber, c.Status, c.Type, c.Market, c.Currency, c.ClaimedAmount, c.Reserve,
+    static ClaimSummary ToSummary(Claim c, Dictionary<Guid, string> names, User viewer) => new(
+        c.Id, c.DisplayNumber, c.Status, c.Type, c.Market, c.Currency, c.ClaimedAmount,
+        viewer.Role == Role.Claimant ? null : c.Reserve, // the reserve is internal: never sent to claimants
         c.ClaimantId, names.GetValueOrDefault(c.ClaimantId, "Unknown"),
         c.AssignedOfficerId, c.AssignedOfficerId is { } officer ? names.GetValueOrDefault(officer, "Unknown") : null,
         c.CreatedAt, c.UpdatedAt);
 
-    static async Task<ClaimDetail> ToDetail(ClaimsDbContext db, Claim claim)
+    static async Task<ClaimDetail> ToDetail(ClaimsDbContext db, Claim claim, User viewer)
     {
         var names = await UserNames(db);
         var events = await db.ClaimEvents.AsNoTracking()
             .Where(e => e.ClaimId == claim.Id)
+            .Where(e => viewer.Role != Role.Claimant || e.Type != ClaimEventType.ReserveAdjusted) // internal to the insurer
             .OrderBy(e => e.OccurredAt)
             .ToListAsync();
 
         return new ClaimDetail(
-            ToSummary(claim, names), claim.IncidentDate, claim.Description, claim.SettlementAmount,
+            ToSummary(claim, names, viewer), claim.IncidentDate, claim.Description, claim.SettlementAmount,
             claim.RejectionReason, claim.DecidedAt,
             claim.InformationRequests.OrderBy(r => r.RequestedAt)
                 .Select(r => new InformationRequestDto(r.Id, r.Question, r.Response, r.RequestedAt, r.RespondedAt))

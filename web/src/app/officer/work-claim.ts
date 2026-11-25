@@ -67,7 +67,7 @@ import { Timeline } from '../shared/timeline';
 
         <section class="card">
           <h2>Timeline</h2>
-          <app-timeline [entries]="c.timeline" [internal]="true" />
+          <app-timeline [entries]="c.timeline" />
         </section>
       </div>
 
