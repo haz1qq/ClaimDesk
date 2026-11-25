@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using ClaimsApi.Api;
 using ClaimsApi.Data;
 using ClaimsApi.Domain;
+using Confluent.Kafka;
 
 namespace ClaimsPlatform.Tests.Smoke;
 
@@ -176,6 +177,38 @@ public class LifecycleSmokeTests
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task Submitted_claim_is_published_to_kafka()
+    {
+        var claim = await SubmitAsAisha(1234m);
+
+        using var consumer = new ConsumerBuilder<string, string>(new ConsumerConfig
+        {
+            BootstrapServers = "localhost:9092",
+            GroupId = $"smoke-{Guid.NewGuid()}", // a fresh group reads the topic from the start
+            AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoCommit = false,
+        }).Build();
+        consumer.Subscribe("claim-events");
+
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+        while (DateTime.UtcNow < deadline)
+        {
+            var result = consumer.Consume(TimeSpan.FromSeconds(1));
+            if (result?.Message?.Key != claim.Summary.Id.ToString())
+                continue;
+
+            using var json = JsonDocument.Parse(result.Message.Value);
+            var message = json.RootElement;
+            Assert.Equal("ClaimSubmitted", message.GetProperty("type").GetString());
+            Assert.Equal(claim.Summary.Number, message.GetProperty("claimNumber").GetString());
+            Assert.Equal(SeedUsers.ClaimantAisha, message.GetProperty("claimantId").GetGuid());
+            Assert.Equal(1234m, message.GetProperty("data").GetProperty("claimedAmount").GetDecimal());
+            return;
+        }
+        Assert.Fail("No Kafka message for the new claim within 20 seconds.");
     }
 
     [Fact]

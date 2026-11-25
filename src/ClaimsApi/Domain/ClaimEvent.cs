@@ -34,4 +34,7 @@ public sealed class ClaimEvent
         OccurredAt = now,
         Payload = JsonSerializer.Serialize(data, PayloadJson),
     };
+
+    /// <summary>Called by the outbox publisher once Kafka has acknowledged the event.</summary>
+    public void MarkPublished(DateTimeOffset at) => PublishedAt = at;
 }

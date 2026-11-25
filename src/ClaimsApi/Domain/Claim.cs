@@ -9,7 +9,8 @@ public sealed class Claim
 {
     public Guid Id { get; private set; }
     public int Number { get; private set; } // assigned by the database
-    public string DisplayNumber => $"CLM-{Number:D6}";
+    public string DisplayNumber => FormatNumber(Number);
+    public static string FormatNumber(int number) => $"CLM-{number:D6}";
     public Guid ClaimantId { get; private set; }
     public Market Market { get; private set; }
     public string Currency { get; private set; } = "";

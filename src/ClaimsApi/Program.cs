@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using ClaimsApi.Api;
 using ClaimsApi.Data;
+using ClaimsApi.Messaging;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +20,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ErrorHandler>();
 builder.Services.AddOpenApi();
+builder.Services.Configure<KafkaOptions>(builder.Configuration.GetSection("Kafka"));
+builder.Services.AddHostedService<OutboxPublisher>();
 
 var app = builder.Build();
 
