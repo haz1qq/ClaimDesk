@@ -42,6 +42,11 @@ public class NotificationTextTests
         Assert.Equal(expected, NotificationText.For(Event(type, "{}")));
 
     [Fact]
+    public void Wrongly_typed_amount_falls_back_to_generic_text() =>
+        Assert.Equal("Your claim CLM-000007 has been settled.",
+            NotificationText.For(Event("ClaimSettled", """{"amount":"abc","currency":"MYR"}""")));
+
+    [Fact]
     public void Well_formed_event_is_valid() => Assert.True(Event("ClaimSubmitted").IsValid);
 
     [Fact]

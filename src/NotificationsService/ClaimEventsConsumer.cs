@@ -97,8 +97,19 @@ public sealed class ClaimEventsConsumer(
         if (await db.ProcessedEvents.AnyAsync(p => p.EventId == message.EventId, ct))
             return; // duplicate delivery: already handled
 
+        string? text;
+        try
+        {
+            text = NotificationText.For(message);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or KeyNotFoundException or FormatException)
+        {
+            // A message whose content can't be read will fail the same way every time: skip it, don't retry.
+            log.LogError(ex, "Skipping claim event {EventId} with unreadable data", message.EventId);
+            return;
+        }
+
         var now = clock.GetUtcNow();
-        var text = NotificationText.For(message);
         var notificationId = Guid.NewGuid();
         db.ProcessedEvents.Add(new ProcessedEvent { EventId = message.EventId, ProcessedAt = now });
         if (text is not null)

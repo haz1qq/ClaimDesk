@@ -33,7 +33,8 @@ public static class NotificationText
             : null;
 
     static decimal? Amount(JsonElement data) =>
-        data.ValueKind == JsonValueKind.Object && data.TryGetProperty("amount", out var value) && value.TryGetDecimal(out var amount)
+        data.ValueKind == JsonValueKind.Object && data.TryGetProperty("amount", out var value)
+        && value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var amount)
             ? amount
             : null;
 }
