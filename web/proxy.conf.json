@@ -1,0 +1,4 @@
+{
+  "/api/notifications": { "target": "http://localhost:5200", "secure": false },
+  "/api": { "target": "http://localhost:5100", "secure": false }
+}
