@@ -65,3 +65,26 @@ A running log of how I used AI on this assessment: what I asked, what I accepted
 
 - **Decision:** Approved `docs/DESIGN.md` as written.
 - **Commits:** the AI commits at each step of the build order, so the history shows how the work progressed.
+
+## 00:53–01:35: Build (AI implemented the plan task by task; I watched and approved "native" execution)
+
+Factual log from the AI. **I still need to add my own comments on what I accepted or challenged.**
+
+- **Process:** test-first throughout. 61 xUnit tests (claim rules, notification text, and smoke tests against the running services). A commit after each task, on branch `build/claims-platform`.
+- **Bugs the AI caught by verifying, not by trusting the code:**
+  - The Postgres row-version mapping required `ValueGeneratedNever` on Guid keys; without it EF would have issued UPDATEs for new rows.
+  - The dashboard sorted on a constructed record, which EF can't translate (500 error). Fixed.
+  - **Angular circular dependency (NG0200):** the user switcher was empty. Found in the browser, not by the build.
+- **Automated security reviews flagged several issues during the build. Fixed (each test-first):**
+  - Services now refuse to start outside Development (fake-login header).
+  - Malformed requests no longer echo internal type names.
+  - A malformed Kafka event could stall the consumer forever; it is now skipped.
+  - Claim text removed from logs.
+  - **The reserve was being sent to claimants.** I spotted it as a domain issue: reserves are confidential to the insurer.
+- **Not changed (my design decisions, now in the README's known limitations):** any officer can view any claim; no per-market scoping.
+- **Verified by hand:**
+  - Stopping Kafka doesn't block claims; the outbox drains when Kafka comes back.
+  - Replaying the whole topic creates no duplicate notifications.
+  - Full lifecycle in the browser across claimant, officer and manager.
+- **Mistake to own:** commit `653a15d` (a notifications fix) also swept in the untouched Angular CLI scaffold, because it was made right after `ng new` with `git add -A`.
+- **Why:** _(fill in what I challenged or overrode during the build)_
