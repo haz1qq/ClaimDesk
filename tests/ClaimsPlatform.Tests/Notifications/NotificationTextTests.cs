@@ -33,6 +33,29 @@ public class NotificationTextTests
         Assert.Equal("Your claim CLM-000007 was not approved: Not covered",
             NotificationText.For(Event("ClaimRejected", """{"reason":"Not covered"}""")));
 
+    // A message missing a detail must still produce sensible text, never throw (a throw would stall the consumer).
+    [Theory]
+    [InlineData("InformationRequested", "We need more information for claim CLM-000007.")]
+    [InlineData("ClaimSettled", "Your claim CLM-000007 has been settled.")]
+    [InlineData("ClaimRejected", "Your claim CLM-000007 was not approved.")]
+    public void Missing_details_fall_back_to_generic_text(string type, string expected) =>
+        Assert.Equal(expected, NotificationText.For(Event(type, "{}")));
+
+    [Fact]
+    public void Well_formed_event_is_valid() => Assert.True(Event("ClaimSubmitted").IsValid);
+
+    [Fact]
+    public void Event_without_recipient_is_invalid() =>
+        Assert.False((Event("ClaimSubmitted") with { ClaimantId = Guid.Empty }).IsValid);
+
+    [Fact]
+    public void Event_without_id_is_invalid() =>
+        Assert.False((Event("ClaimSubmitted") with { EventId = Guid.Empty }).IsValid);
+
+    [Fact]
+    public void Event_with_oversized_claim_number_is_invalid() =>
+        Assert.False((Event("ClaimSubmitted") with { ClaimNumber = new string('9', 21) }).IsValid);
+
     [Fact]
     public void Reserve_adjustment_is_not_sent_to_the_claimant() =>
         Assert.Null(NotificationText.For(Event("ReserveAdjusted", """{"previous":1,"current":2,"currency":"MYR"}""")));

@@ -54,7 +54,8 @@ public sealed class ClaimEventsConsumer(
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    // e.g. the database is down: don't skip the event, wait and read it again.
+                    // Only transient failures get here (e.g. the database is down): bad messages are skipped in
+                    // HandleAsync. Don't skip a good event because of an outage: wait and read it again.
                     log.LogError(ex, "Failed to handle event at {Offset}; retrying in 5s", result.TopicPartitionOffset);
                     await Task.Delay(TimeSpan.FromSeconds(5), ct);
                     consumer.Seek(result.TopicPartitionOffset);
@@ -84,8 +85,11 @@ public sealed class ClaimEventsConsumer(
             log.LogError(ex, "Skipping malformed claim event");
             return;
         }
-        if (message is null)
+        if (message is null || !message.IsValid)
+        {
+            log.LogError("Skipping claim event with missing or invalid fields");
             return;
+        }
 
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<NotificationsDbContext>();
@@ -95,12 +99,13 @@ public sealed class ClaimEventsConsumer(
 
         var now = clock.GetUtcNow();
         var text = NotificationText.For(message);
+        var notificationId = Guid.NewGuid();
         db.ProcessedEvents.Add(new ProcessedEvent { EventId = message.EventId, ProcessedAt = now });
         if (text is not null)
         {
             db.Notifications.Add(new Notification
             {
-                Id = Guid.NewGuid(),
+                Id = notificationId,
                 RecipientId = message.ClaimantId,
                 ClaimId = message.ClaimId,
                 ClaimNumber = message.ClaimNumber,
@@ -118,7 +123,8 @@ public sealed class ClaimEventsConsumer(
             return; // another delivery of the same event won the race: already handled
         }
 
-        if (text is not null)
-            log.LogInformation("Email sent (simulated) to {RecipientId}: {Message}", message.ClaimantId, text);
+        if (text is not null) // ids only: the message text can contain claim details
+            log.LogInformation("Email sent (simulated): notification {NotificationId} for {EventType} to {RecipientId}",
+                notificationId, message.Type, message.ClaimantId);
     }
 }
