@@ -213,6 +213,25 @@ public class LifecycleSmokeTests
         Assert.Fail("No Kafka message for the new claim within 20 seconds.");
     }
 
+    /// <summary>Needs the Notifications service running too (http://localhost:5200).</summary>
+    [Fact]
+    public async Task Submitting_a_claim_notifies_the_claimant()
+    {
+        var claim = await SubmitAsAisha();
+        using var notifications = new HttpClient { BaseAddress = new Uri("http://localhost:5200") };
+        notifications.DefaultRequestHeaders.Add("X-User-Id", SeedUsers.ClaimantAisha.ToString());
+
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+        while (DateTime.UtcNow < deadline)
+        {
+            var list = await notifications.GetFromJsonAsync<List<NotificationsService.NotificationDto>>("/api/notifications", Json);
+            if (list!.Any(n => n.ClaimId == claim.Summary.Id && n.Message == $"We've received your claim {claim.Summary.Number}."))
+                return;
+            await Task.Delay(500);
+        }
+        Assert.Fail("No notification for the new claim within 20 seconds.");
+    }
+
     [Fact]
     public async Task Users_lists_seeded_users_with_string_roles()
     {
