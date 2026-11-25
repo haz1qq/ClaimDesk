@@ -1,0 +1,25 @@
+# Assessment brief contains third-party branding: keep it out of the repo
+*.docx
+~$*
+
+# Local tooling state
+.remember/
+.claude/settings.local.json
+.vs/
+*.user
+.idea/
+
+# .NET
+bin/
+obj/
+TestResults/
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+
+# Secrets and env
+.env
+.env.*
+!.env.example
