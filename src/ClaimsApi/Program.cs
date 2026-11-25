@@ -11,6 +11,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<ErrorHandler>();
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
@@ -23,11 +24,15 @@ await using (var scope = app.Services.CreateAsyncScope())
     await SeedData.EnsureSeededAsync(db, TimeProvider.System.GetUtcNow());
 }
 
+app.UseExceptionHandler(); // rule violations → 400/403/409 ProblemDetails (ErrorHandler)
+app.UseStatusCodePages(); // empty error responses (e.g. 404) also get a ProblemDetails body
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
 app.MapUserEndpoints();
+app.MapClaimEndpoints();
 
 app.Run();
