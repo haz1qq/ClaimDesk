@@ -5,6 +5,12 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// The X-User-Id header is a demo stand-in for authentication (DESIGN.md §2), and startup seeds demo users.
+// Fail closed: refuse to run anywhere except local development.
+if (!builder.Environment.IsDevelopment())
+    throw new InvalidOperationException(
+        "ClaimsApi trusts a development-only identity header (X-User-Id). Configure real authentication before running outside Development.");
+
 builder.Services.AddDbContext<ClaimsDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Claims")));
 builder.Services.AddSingleton(TimeProvider.System);
