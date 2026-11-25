@@ -28,6 +28,13 @@ public record InformationRequestDto(
 
 public record TimelineEntry(ClaimEventType Type, Guid ActorId, string ActorName, DateTimeOffset OccurredAt);
 
+public record StatusCount(ClaimStatus Status, int Count);
+public record OfficerWorkload(Guid OfficerId, string Name, int Open, int ClosedLast30Days, double? AvgDaysToDecision);
+public record CurrencyExposure(string Currency, decimal TotalReserve, int OpenClaims);
+public record DashboardDto(
+    IReadOnlyList<StatusCount> OpenByStatus, int Unassigned, IReadOnlyList<OfficerWorkload> Officers,
+    IReadOnlyList<CurrencyExposure> Exposure, int OpenOver7Days, int OpenOver30Days);
+
 public record ClaimDetail(
     ClaimSummary Summary, DateOnly IncidentDate, string Description, decimal? SettlementAmount,
     string? RejectionReason, DateTimeOffset? DecidedAt,

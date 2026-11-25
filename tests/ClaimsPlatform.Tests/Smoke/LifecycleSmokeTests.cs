@@ -213,6 +213,50 @@ public class LifecycleSmokeTests
         Assert.Fail("No Kafka message for the new claim within 20 seconds.");
     }
 
+    static async Task<DashboardDto> Dashboard(Guid userId)
+    {
+        using var http = As(userId);
+        return (await http.GetFromJsonAsync<DashboardDto>("/api/dashboard", Json))!;
+    }
+
+    static CurrencyExposure Myr(DashboardDto dashboard) =>
+        dashboard.Exposure.SingleOrDefault(e => e.Currency == "MYR") ?? new CurrencyExposure("MYR", 0m, 0);
+
+    [Fact]
+    public async Task Dashboard_exposure_tracks_reserve()
+    {
+        var before = Myr(await Dashboard(SeedUsers.OfficerMei));
+
+        var id = (await SubmitAsAisha(1000m)).Summary.Id; // Aisha is in MY → MYR
+        var open = Myr(await Dashboard(SeedUsers.OfficerMei));
+        Assert.Equal(before.TotalReserve + 1000m, open.TotalReserve);
+        Assert.Equal(before.OpenClaims + 1, open.OpenClaims);
+
+        await Expect(HttpStatusCode.OK, SeedUsers.OfficerMei, HttpMethod.Post, $"/api/claims/{id}/assign");
+        await Expect(HttpStatusCode.OK, SeedUsers.OfficerMei, HttpMethod.Post, $"/api/claims/{id}/settle", new SettleRequest(900m));
+        var closed = Myr(await Dashboard(SeedUsers.OfficerMei));
+        Assert.Equal(before.TotalReserve, closed.TotalReserve);
+        Assert.Equal(before.OpenClaims, closed.OpenClaims);
+    }
+
+    [Fact]
+    public async Task Dashboard_lists_every_officer()
+    {
+        var dashboard = await Dashboard(SeedUsers.ManagerJames);
+
+        Assert.Equal(
+            new[] { SeedUsers.OfficerArjun, SeedUsers.OfficerMei }.Order(),
+            dashboard.Officers.Select(o => o.OfficerId).Order());
+    }
+
+    [Fact]
+    public async Task Claimant_dashboard_is_403()
+    {
+        var response = await Send(SeedUsers.ClaimantAisha, HttpMethod.Get, "/api/dashboard");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
     /// <summary>Needs the Notifications service running too (http://localhost:5200).</summary>
     [Fact]
     public async Task Submitting_a_claim_notifies_the_claimant()

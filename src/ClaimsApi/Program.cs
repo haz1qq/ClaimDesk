@@ -43,5 +43,6 @@ if (app.Environment.IsDevelopment())
 
 app.MapUserEndpoints();
 app.MapClaimEndpoints();
+app.MapDashboardEndpoints();
 
 app.Run();
