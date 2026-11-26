@@ -3,7 +3,7 @@
 A running log of how I used AI on this assessment: what I asked, what I accepted, what I challenged, and what I overrode. Entries are in time order and not polished.
 
 - **Tool:** Claude Code (Claude Opus 5.5), run in the terminal against this repository.
-- **Times:** local time, 25 Nov 2026.
+- **Times:** local time, 25–26 Nov 2026 (the sprint ran from 23:38 to 01:35).
 
 ---
 
@@ -49,7 +49,7 @@ A running log of how I used AI on this assessment: what I asked, what I accepted
 - **Asked:** Is EF Core mandatory, and what are the alternatives?
 - **AI said:** It isn't mandatory. Dapper (plain SQL) or raw Npgsql would also work. The AI leaned towards **Dapper**, on the condition that I'm comfortable with SQL, because every database call would be visible SQL and there'd be less hidden behaviour to explain.
 - **Decision:** **Overrode the AI's lean: went with EF Core.**
-- **Why:** _(fill in)_
+- **Why:** EF Core fits ClaimDesk because the work is managing claim changes reliably with little hand-written database code. For example, its row-version token (Postgres xmin) stops two officers picking up the same claim, and migrations create the schema. Dapper could support the same design, but I'd write that persistence logic myself.
 
 ## 23:56: Service boundaries
 
@@ -68,8 +68,6 @@ A running log of how I used AI on this assessment: what I asked, what I accepted
 
 ## 00:53–01:35: Build (AI implemented the plan task by task; I watched and approved "native" execution)
 
-Factual log from the AI. **I still need to add my own comments on what I accepted or challenged.**
-
 - **Process:** test-first throughout. 61 xUnit tests (claim rules, notification text, and smoke tests against the running services). A commit after each task, on branch `build/claims-platform`.
 - **Bugs the AI caught by verifying, not by trusting the code:**
   - The Postgres row-version mapping required `ValueGeneratedNever` on Guid keys; without it EF would have issued UPDATEs for new rows.
@@ -80,11 +78,54 @@ Factual log from the AI. **I still need to add my own comments on what I accepte
   - Malformed requests no longer echo internal type names.
   - A malformed Kafka event could stall the consumer forever; it is now skipped.
   - Claim text removed from logs.
-  - **The reserve was being sent to claimants.** I spotted it as a domain issue: reserves are confidential to the insurer.
-- **Not changed (my design decisions, now in the README's known limitations):** any officer can view any claim; no per-market scoping.
+  - **The reserve was being sent to claimants.** The AI noticed this while building the claimant page, and an automated security review flagged it too. The reserve is the insurer's internal estimate of what a claim will cost, so claimants shouldn't see it. It is now hidden on the server, not just in the UI.
+- **Not changed (decisions in the design I approved, now in the README's known limitations):** any officer can view any claim; no per-market scoping.
 - **Verified by hand:**
   - Stopping Kafka doesn't block claims; the outbox drains when Kafka comes back.
   - Replaying the whole topic creates no duplicate notifications.
   - Full lifecycle in the browser across claimant, officer and manager.
+- **Asked mid-build (01:17): xUnit, NUnit or MSTest?** The AI said xUnit, the `dotnet new xunit` default and the most widely used in modern .NET. Unit tests need no infrastructure; smoke tests are tagged `Category=Smoke` and call the running services. Accepted.
 - **Mistake to own:** commit `653a15d` (a notifications fix) also swept in the untouched Angular CLI scaffold, because it was made right after `ng new` with `git add -A`.
-- **Why:** _(fill in what I challenged or overrode during the build)_
+- **Why:** I didn't override anything during the build; I reviewed each step and accepted it.
+
+---
+
+## 01:35: Where it stands at submission
+
+**Time:** about 2 hours (23:38 to 01:35), inside the 2–3 hour target and well under the 5-hour cap. About 1 hour went on reading the brief, deciding the stack and approving the design and plan; about 40 minutes went on the build.
+
+### What was built
+
+- **Claims API (.NET 10, EF Core, Postgres).** The full lifecycle over REST:
+  - **Claimant:** reports an incident, tracks the claim, answers information requests, sees the decision.
+  - **Officer:** picks up a claim, requests information, adjusts the reserve, settles or rejects.
+  - **Rules** live in the `Claim` aggregate; rule violations come back as 400/403/409 ProblemDetails.
+  - **Two officers picking up the same claim:** one gets 200, the other 409, enforced by the Postgres row version.
+- **Kafka with one defensible job.** Claim events are written to an outbox in the same transaction as the change, then published to one topic. A separate Notifications service consumes them idempotently. Claim decisions never wait on Kafka.
+- **Manager and officer dashboard.** Outstanding claims, team workload and liability exposure (the sum of open reserves), per currency, never converted.
+- **Angular front end** with a role switcher and pages for all three roles: my claims, report an incident and claim detail; work queue and work claim; dashboard.
+- **Tests:** 61 xUnit tests, 45 unit tests on claim rules and notification text, 16 smoke tests over HTTP against the running services.
+- **Verified by hand:** concurrent pick-up, Kafka down while claims are created, a full topic replay with no duplicates, the full lifecycle in the browser.
+
+### What I left out, and why
+
+Most of these were cut up front in the design I approved (DESIGN.md §2 and §13), so the time went on the claim lifecycle and the Kafka path rather than on breadth.
+
+| Left out | Why |
+|---|---|
+| Real authentication | A role switcher sending `X-User-Id` shows all three roles without building OIDC. Both services refuse to start outside Development so the shim can't be deployed by accident. |
+| Policies, coverage checks, payments | These belong to other systems (policy admin, payments). "Settled" means a settlement was decided. |
+| Currency conversion | Exposure is reported per currency; summing SGD and IDR without a rate source would be wrong. |
+| File uploads, fraud scoring, real email or SMS, localisation | Breadth that doesn't change the architecture. "Email sent" is a log line in the Notifications service. |
+| Reassigning or withdrawing claims, per-market scoping | Extra state transitions and permissions; one team across markets is enough to show the workflow. |
+| Notifications badge in the UI | Stretch item, not reached. Notifications are stored and served by the Notifications service API, but the UI doesn't show them yet. |
+| Containerised services, generated TypeScript client, server-sent events | Stretch items, not reached. The services run with `dotnet run`; the UI polls every 10 seconds. |
+| Dead-letter topic | The consumer retries transient failures without a cap so no event is dropped during an outage; malformed events are skipped and logged. |
+
+### How I directed the AI
+
+- **Challenged:** the .NET version. The AI planned on .NET 9 because it was installed; it had reached end of support, so we moved to .NET 10 LTS.
+- **Overrode:** the AI's lean towards Dapper; I chose EF Core.
+- **Corrected:** the AI writing my reasons into this journal before I'd given them.
+- **Accepted, after review:** the C#/.NET recommendation, service split B, the design and plan, and each build step.
+- **Caught by verification rather than trust:** the Guid key mapping, the untranslatable dashboard query, and the Angular circular dependency, which only showed up in the browser.
